@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羅東國中 114學年度合作社會員互動名冊</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals & Subtle Teal (bg-stone-50, text-stone-800, accent-teal-600) -->
+    <!-- Application Structure Plan: A dashboard-style Single Page Application (SPA). Top section provides context and aggregate data visualizations to give users a quick overview of the cooperative's composition (e.g., ratio of teachers to staff). The bottom section is an interactive directory with robust filtering and search capabilities, allowing users to quickly find specific individuals or browse specific departments. This structure transforms a static list into an exploratory tool. -->
+    <!-- Visualization & Content Choices: 
+         1. Goal: Inform -> Total count & intro text -> Provides immediate context. 
+         2. Goal: Compare -> Donut Chart (Chart.js/Canvas) -> Shows the proportion of member categories (Teachers, Admin, etc.) to understand the demographic makeup. 
+         3. Goal: Compare -> Bar Chart (Chart.js/Canvas) -> Breaks down Homeroom Teachers by grade level for detailed structural insight. 
+         4. Goal: Explore -> Interactive Data Grid (HTML/JS) -> Allows users to filter by category or search by name/title, replacing the need to scroll through a long static document. 
+         * CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. All visuals rely on HTML/CSS and Chart.js Canvas. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .filter-btn.active {
+            background-color: #0d9488; /* teal-600 */
+            color: white;
+            border-color: #0d9488;
+        }
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f5f5f4; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d6d3d1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a29e; 
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800 font-sans antialiased leading-relaxed">
+
+    <!-- Header Section -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center text-xl font-bold">
+                    羅
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-stone-900">羅東國中員生消費合作社</h1>
+                    <p class="text-sm text-stone-500">114學年度 (第58屆) 會員互動名冊</p>
+                </div>
+            </div>
+            <div class="bg-stone-100 px-4 py-2 rounded-lg border border-stone-200 text-center">
+                <span class="block text-xs text-stone-500 font-semibold uppercase tracking-wider">總會員數</span>
+                <span class="block text-2xl font-bold text-teal-700" id="total-count-header">149</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+
+        <!-- Introduction & Overview Section -->
+        <section class="space-y-6">
+            <div class="max-w-3xl">
+                <h2 class="text-2xl font-semibold border-b-2 border-teal-600 pb-2 inline-block mb-4">合作社結構概覽</h2>
+                <p class="text-stone-600">
+                    歡迎使用本互動名冊。本區塊提供羅東國中 114 學年度合作社會員的整體輪廓。透過圖表，您可以清晰地看出校內不同職務類別（如導師、專任教師、行政人員等）在合作社中的組成比例。點擊圖表圖例可開啟或隱藏特定類別，協助您快速掌握組織結構。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                <!-- Chart 1: Category Distribution -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col items-center">
+                    <h3 class="text-lg font-medium text-stone-800 mb-2 text-center">會員職務類別分布</h3>
+                    <p class="text-sm text-stone-500 mb-4 text-center">顯示五大類別會員的人數佔比</p>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Homeroom Teachers Breakdown -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 flex flex-col items-center">
+                    <h3 class="text-lg font-medium text-stone-800 mb-2 text-center">各年級導師人數統計</h3>
+                    <p class="text-sm text-stone-500 mb-4 text-center">顯示七、八、九年級及特教/潛能班的導師配置</p>
+                    <div class="chart-container">
+                        <canvas id="homeroomChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Interactive Directory Section -->
+        <section class="space-y-6 bg-white p-6 rounded-xl shadow-sm border border-stone-200">
+            <div>
+                <h2 class="text-2xl font-semibold border-b-2 border-teal-600 pb-2 inline-block mb-4">會員互動查詢台</h2>
+                <p class="text-stone-600 mb-6">
+                    在此區塊，您可以自由探索 149 位會員的詳細名單。請使用下方的「分類標籤」快速篩選不同處室或職務群組，或直接在「搜尋列」輸入姓名或職稱進行精準尋找。系統會即時更新下方的名片牆。
+                </p>
+            </div>
+
+            <!-- Controls (Search & Filters) -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-stone-50 p-4 rounded-lg border border-stone-200">
+                <div class="w-full md:w-1/3">
+                    <div class="relative">
+                        <input type="text" id="searchInput" placeholder="搜尋姓名、職稱或處室..." class="w-full pl-4 pr-10 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-shadow">
+                        <div class="absolute right-3 top-2.5 text-stone-400 font-bold">
+                            &#x1F50D;
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="w-full md:w-2/3 flex flex-wrap gap-2" id="filterContainer">
+                    <button class="filter-btn active px-4 py-1.5 rounded-full border border-stone-300 text-sm font-medium text-stone-700 bg-white hover:bg-stone-100 transition-colors" data-filter="all">全部顯示</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full border border-stone-300 text-sm font-medium text-stone-700 bg-white hover:bg-stone-100 transition-colors" data-filter="校長與各處室主任">校長與主任</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full border border-stone-300 text-sm font-medium text-stone-700 bg-white hover:bg-stone-100 transition-colors" data-filter="行政組長">行政組長</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full border border-stone-300 text-sm font-medium text-stone-700 bg-white hover:bg-stone-100 transition-colors" data-filter="各年級導師">各年級導師</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full border border-stone-300 text-sm font-medium text-stone-700 bg-white hover:bg-stone-100 transition-colors" data-filter="專任教師與教練">專任教師/教練</button>
+                    <button class="filter-btn px-4 py-1.5 rounded-full border border-stone-300 text-sm font-medium text-stone-700 bg-white hover:bg-stone-100 transition-colors" data-filter="行政職員與校園夥伴">職員與校園夥伴</button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center text-sm text-stone-500 py-2">
+                <span>目前顯示：<strong id="displayCount" class="text-teal-700 font-bold">149</strong> 筆資料</span>
+            </div>
+
+            <!-- Data Grid -->
+            <div id="memberGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <!-- Cards will be injected here via JavaScript -->
+            </div>
+            
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden py-12 text-center">
+                <div class="text-4xl mb-4">&#x1F6AB;</div>
+                <h3 class="text-lg font-medium text-stone-800">找不到相符的資料</h3>
+                <p class="text-stone-500">請嘗試更換搜尋關鍵字或清除篩選條件。</p>
+            </div>
+        </section>
+
+        <footer class="text-center py-6 text-sm text-stone-400 border-t border-stone-200 mt-12">
+            <p>資料來源：羅東國中 114 學年度第 58 屆原始造冊資料整理</p>
+            <p>備註：若有職務異動，以人事室及合作社最新公告為準。</p>
+        </footer>
+
+    </main>
+
+    <script>
+        // Data Storage
+        const membersData = [
+            // 一、 校長與各處室主任（共 7 人）
+            { name: '李苑翠', title: '校長', category: '校長與各處室主任', subCategory: '校長室' },
+            { name: '劉士嘉', title: '教務主任', category: '校長與各處室主任', subCategory: '教務處' },
+            { name: '簡志銘', title: '學務主任', category: '校長與各處室主任', subCategory: '學務處' },
+            { name: '張振東', title: '總務主任', category: '校長與各處室主任', subCategory: '總務處' },
+            { name: '羅雅鈴', title: '輔導主任', category: '校長與各處室主任', subCategory: '輔導處' },
+            { name: '李美青', title: '會計主任', category: '校長與各處室主任', subCategory: '會計室' },
+            { name: '王逸軒', title: '人事主任', category: '校長與各處室主任', subCategory: '人事室' },
+
+            // 二、 行政組長（共 18 人）
+            { name: '黃睿弘', title: '課程發展組長', category: '行政組長', subCategory: '教務處' },
+            { name: '林欣燕', title: '課程事務組長', category: '行政組長', subCategory: '教務處' },
+            { name: '王淑鏗', title: '學籍管理組長', category: '行政組長', subCategory: '教務處' },
+            { name: '簡羽均', title: '資賦優異組長', category: '行政組長', subCategory: '教務處' },
+            { name: '楊智超', title: '資訊教育組長', category: '行政組長', subCategory: '教務處' },
+            { name: '林姿佑', title: '舞蹈藝能組長', category: '行政組長', subCategory: '學務處' },
+            { name: '鄭淼元', title: '學生活動組長', category: '行政組長', subCategory: '學務處' },
+            { name: '王思元', title: '學生活動副組長', category: '行政組長', subCategory: '學務處' },
+            { name: '王銘德', title: '體育健康組長', category: '行政組長', subCategory: '學務處' },
+            { name: '張庭瑞', title: '生活教育副組長', category: '行政組長', subCategory: '學務處' },
+            { name: '張凱倫', title: '環境保護組長', category: '行政組長', subCategory: '學務處' },
+            { name: '林家棟', title: '環境保護副組長', category: '行政組長', subCategory: '學務處' },
+            { name: '邱嘉慧', title: '生涯輔導組長', category: '行政組長', subCategory: '輔導處' },
+            { name: '林嘉汶', title: '學習輔導組長', category: '行政組長', subCategory: '輔導處' },
+            { name: '李佩琪', title: '特教組長', category: '行政組長', subCategory: '輔導處' },
+            { name: '鄭安妤', title: '事務組長', category: '行政組長', subCategory: '總務處' },
+            { name: '吳惠雯', title: '文書組長', category: '行政組長', subCategory: '總務處' },
+            { name: '謝瓊瑤', title: '出納組長', category: '行政組長', subCategory: '總務處' },
+
+            // 三、 各年級導師（共 65 人） - 9年級 (18)
+            { name: '賴思明', title: '901導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '黃薷平', title: '902導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '簡瑩葶', title: '903導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '張喬欣', title: '904導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '林春秀', title: '905導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '鄭豪蒂', title: '906導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '藍玉惠', title: '907導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '傅雲珍', title: '908導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '劉又慈', title: '909導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '吳雅婷', title: '910導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '陳建新', title: '911導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '練哲佑', title: '912導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '林淑華', title: '913導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '李宜蓉', title: '914導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '李鈞育', title: '915導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '柯彥廷', title: '916導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '黃郁晴', title: '917導師', category: '各年級導師', subCategory: '九年級' },
+            { name: '李雅玲', title: '918導師', category: '各年級導師', subCategory: '九年級' },
+
+            // 三、 各年級導師 - 8年級 (21)
+            { name: '黃昭嬿', title: '801導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '趙世琪', title: '802導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '黃聖茹', title: '803導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '葉宛瑜', title: '804導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '游孟儒', title: '805導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '林耿任', title: '806導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '陳柏如', title: '807導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '何嘉欣', title: '808導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '詹禮豪', title: '809導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '李品萱', title: '810導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '黃啟棚', title: '811導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '俞任厚', title: '812導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '劉靖韻', title: '813導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '林婉萍', title: '814導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '陳怡伶', title: '815導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '林有鈿', title: '816導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '吳嵩慶', title: '817導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '游芳諭', title: '818導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '羅悅慈', title: '819導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '林蓓芝', title: '820導師', category: '各年級導師', subCategory: '八年級' },
+            { name: '陳儀榕', title: '821導師', category: '各年級導師', subCategory: '八年級' },
+
+            // 三、 各年級導師 - 7年級 (20)
+            { name: '陳俊志', title: '701導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '李旻', title: '702導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '林羿君', title: '703導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '蔡憶萍', title: '704導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '游雅婷', title: '705導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '林玉琳', title: '706導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '林喬文', title: '707導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '陳俞吟', title: '708導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '陳淑萍', title: '709導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '曾仙池', title: '710導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '李宜芳', title: '711導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '余湘榆', title: '712導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '張秀貞', title: '713導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '陳慧嘉', title: '714導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '陳霈庭', title: '715導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '呂律妍', title: '716導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '張家翎', title: '717導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '楊婉靈', title: '718導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '翁育詩', title: '719導師', category: '各年級導師', subCategory: '七年級' },
+            { name: '賴靜宣', title: '720導師', category: '各年級導師', subCategory: '七年級' },
+
+            // 三、 各年級導師 - 特教與潛能 (6)
+            { name: '邱家倩', title: '8年級特教班', category: '各年級導師', subCategory: '特教潛能' },
+            { name: '簡淑敏', title: '8年級特教班', category: '各年級導師', subCategory: '特教潛能' },
+            { name: '周祈良', title: '7年級特教班', category: '各年級導師', subCategory: '特教潛能' },
+            { name: '楊采潔', title: '潛能班', category: '各年級導師', subCategory: '特教潛能' },
+            { name: '吳雅婷', title: '潛能班', category: '各年級導師', subCategory: '特教潛能' },
+            { name: '許翠萍', title: '潛能班', category: '各年級導師', subCategory: '特教潛能' },
+
+            // 四、 專任教師與教練（共 49 人）
+            { name: '林麗榕', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '林瑩芳', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '林麗鳳', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '林欣蘭', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '林姿似', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '黃孟樵', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '黃靖茹', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '許瑋航', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '許蕙菁', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '吳文達', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '吳昭嬉', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '楊世逢', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '楊盷芝', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '楊耀庭', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '楊顯發', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '蔡淑溫', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '張瓊文', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳家彬', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '邱嘉德', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '趙玉芬', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '莊啟聖', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '曾彥莙', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '邱素貞', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳怡欣', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳佳伶', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳音溫', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '游明志', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '廖舒瑜', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '賴聖慈', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '龍吟', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳貞竹', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '蔡淳亘', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳芊妤', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '王薏慈', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '鄭若苓', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '闕瑋娟', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '何佩儒', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '王愉', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '李莊宜田', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '林升權', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '鄭豐億', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '呂浩鳴', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '游黎貞', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳素琴', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '陳怡慈', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '林于文', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '徐沛雯', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '賴于真', title: '專任教師', category: '專任教師與教練', subCategory: '專任教師' },
+            { name: '游宏彬', title: '專任運動教練', category: '專任教師與教練', subCategory: '專任教練' },
+
+            // 五、 行政職員與校園夥伴（共 10 人）
+            { name: '林廷偉', title: '人事助理員', category: '行政職員與校園夥伴', subCategory: '幹事與助理' },
+            { name: '陳如慧', title: '幹事', category: '行政職員與校園夥伴', subCategory: '幹事與助理' },
+            { name: '黃靜芬', title: '幹事', category: '行政職員與校園夥伴', subCategory: '幹事與助理' },
+            { name: '林秀如', title: '幹事', category: '行政職員與校園夥伴', subCategory: '幹事與助理' },
+            { name: '莊翠娟', title: '幹事', category: '行政職員與校園夥伴', subCategory: '幹事與助理' },
+            { name: '許錫堅', title: '技工', category: '行政職員與校園夥伴', subCategory: '技工與工友' },
+            { name: '傅芳華', title: '工友', category: '行政職員與校園夥伴', subCategory: '技工與工友' },
+            { name: '楊曉帆', title: '工友', category: '行政職員與校園夥伴', subCategory: '技工與工友' },
+            { name: '陳芷瑜', title: '警衛人員', category: '行政職員與校園夥伴', subCategory: '警衛與職員' },
+            { name: '陳敏蒨', title: '合作社職員', category: '行政職員與校園夥伴', subCategory: '警衛與職員' }
+        ];
+
+        // State Management
+        let currentState = {
+            filter: 'all',
+            search: ''
+        };
+
+        // DOM Elements
+        const grid = document.getElementById('memberGrid');
+        const emptyState = document.getElementById('emptyState');
+        const displayCount = document.getElementById('displayCount');
+        const searchInput = document.getElementById('searchInput');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+
+        // Initialize UI
+        function init() {
+            renderCards(membersData);
+            initCharts();
+            setupEventListeners();
+        }
+
+        // Render Data Grid
+        function renderCards(data) {
+            grid.innerHTML = '';
+            
+            if (data.length === 0) {
+                grid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+            } else {
+                grid.classList.remove('hidden');
+                emptyState.classList.add('hidden');
+                
+                data.forEach(member => {
+                    // Assign colors based on category
+                    let bgColor = 'bg-stone-100';
+                    let textColor = 'text-stone-600';
+                    let borderColor = 'border-stone-200';
+                    
+                    if (member.category === '校長與各處室主任') {
+                        bgColor = 'bg-amber-50'; textColor = 'text-amber-700'; borderColor = 'border-amber-200';
+                    } else if (member.category === '行政組長') {
+                        bgColor = 'bg-blue-50'; textColor = 'text-blue-700'; borderColor = 'border-blue-200';
+                    } else if (member.category === '各年級導師') {
+                        bgColor = 'bg-emerald-50'; textColor = 'text-emerald-700'; borderColor = 'border-emerald-200';
+                    } else if (member.category === '專任教師與教練') {
+                        bgColor = 'bg-violet-50'; textColor = 'text-violet-700'; borderColor = 'border-violet-200';
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = `p-4 rounded-xl border ${borderColor} bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between h-full`;
+                    card.innerHTML = `
+                        <div>
+                            <span class="inline-block px-2 py-1 rounded text-xs font-semibold mb-2 ${bgColor} ${textColor}">
+                                ${member.subCategory}
+                            </span>
+                            <h4 class="text-lg font-bold text-stone-800 tracking-wide">${member.name}</h4>
+                        </div>
+                        <div class="mt-3 text-sm text-stone-500 font-medium">
+                            ${member.title}
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            }
+            displayCount.textContent = data.length;
+        }
+
+        // Apply Filters and Search
+        function applyFilters() {
+            let filteredData = membersData;
+
+            // Apply Category Filter
+            if (currentState.filter !== 'all') {
+                filteredData = filteredData.filter(m => m.category === currentState.filter);
+            }
+
+            // Apply Search Text
+            if (currentState.search.trim() !== '') {
+                const query = currentState.search.toLowerCase();
+                filteredData = filteredData.filter(m => 
+                    m.name.toLowerCase().includes(query) || 
+                    m.title.toLowerCase().includes(query) ||
+                    m.subCategory.toLowerCase().includes(query)
+                );
+            }
+
+            renderCards(filteredData);
+        }
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            // Search Input
+            searchInput.addEventListener('input', (e) => {
+                currentState.search = e.target.value;
+                applyFilters();
+            });
+
+            // Filter Buttons
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    // Update active state
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    
+                    // Update state and re-render
+                    currentState.filter = e.target.getAttribute('data-filter');
+                    applyFilters();
+                });
+            });
+        }
+
+        // Initialize Chart.js
+        function initCharts() {
+            // Data Aggregation for Category Chart
+            const categoryCounts = {
+                '校長與各處室主任': 0,
+                '行政組長': 0,
+                '各年級導師': 0,
+                '專任教師與教練': 0,
+                '行政職員與校園夥伴': 0
+            };
+            
+            // Data Aggregation for Homeroom Chart
+            const gradeCounts = {
+                '九年級': 0,
+                '八年級': 0,
+                '七年級': 0,
+                '特教潛能': 0
+            };
+
+            membersData.forEach(m => {
+                if(categoryCounts[m.category] !== undefined) categoryCounts[m.category]++;
+                if(m.category === '各年級導師' && gradeCounts[m.subCategory] !== undefined) gradeCounts[m.subCategory]++;
+            });
+
+            // 1. Category Donut Chart
+            const ctxCat = document.getElementById('categoryChart').getContext('2d');
+            new Chart(ctxCat, {
+                type: 'doughnut',
+                data: {
+                    labels: ['校長/主任', '行政組長', '各年級導師', '專任教師/教練', '行政職員等'],
+                    datasets: [{
+                        data: [
+                            categoryCounts['校長與各處室主任'],
+                            categoryCounts['行政組長'],
+                            categoryCounts['各年級導師'],
+                            categoryCounts['專任教師與教練'],
+                            categoryCounts['行政職員與校園夥伴']
+                        ],
+                        backgroundColor: [
+                            '#f59e0b', // amber-500
+                            '#3b82f6', // blue-500
+                            '#10b981', // emerald-500
+                            '#8b5cf6', // violet-500
+                            '#78716c'  // stone-500
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'sans-serif' } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) { label += ': '; }
+                                    label += context.raw + ' 人 (' + Math.round((context.raw/149)*100) + '%)';
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+
+            // 2. Homeroom Bar Chart
+            const ctxHome = document.getElementById('homeroomChart').getContext('2d');
+            new Chart(ctxHome, {
+                type: 'bar',
+                data: {
+                    labels: ['九年級', '八年級', '七年級', '特教/潛能班'],
+                    datasets: [{
+                        label: '導師人數',
+                        data: [
+                            gradeCounts['九年級'],
+                            gradeCounts['八年級'],
+                            gradeCounts['七年級'],
+                            gradeCounts['特教潛能']
+                        ],
+                        backgroundColor: '#0d9488', // teal-600
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) { return context.raw + ' 位導師'; }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 5 },
+                            grid: { color: '#f5f5f4' } // stone-100
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Boot
+        document.addEventListener('DOMContentLoaded', init);
+
+    </script>
+</body>
+</html>
